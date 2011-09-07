@@ -1,0 +1,89 @@
+#! /bin/env python
+import time
+startime = time.time()
+import sys
+import argparse
+import subprocess
+from cStringIO import StringIO
+import math
+import re
+import multiprocessing
+from pGcaller_objectVersion import *
+import os
+############################################
+# This script requires python 2.7 or later #
+############################################
+#20110711 Erik Borgstroem
+
+
+def main():
+#--------------------------MAIN PROGRAM-----------------------------
+	sys.stderr.write('Starting polyG Caller, process id '+str(os.getpid())+' ('+time.strftime("%A, %d %b %Y %H:%M:%S",time.localtime())+').\n')
+
+	#get total pgcount
+	if input.load_max == 0:
+		total_pg_count = fasta_get_total_records()
+	else:
+		total_pg_count = input.load_max
+	sys.stderr.write(str(total_pg_count)+' polyG regions to call.\n')
+
+	#create worker pool
+	WorkerPool = multiprocessing.Pool(multiprocessing.cpu_count(),maxtasksperchild=100)
+	result = WorkerPool.imap_unordered(f,polyG_generator(input.pgfile),chunksize=10)
+#	del polyGs
+	
+	#create a summary object to add info to
+	summary = PolyGSummary()
+	
+	#process data
+	tempo = time.time()
+	sys.stderr.write('Start work, using '+str(multiprocessing.cpu_count())+' processes.\n')		
+	sys.stderr.write('Progress:\n')	
+	sys.stderr.write('\t0%       10%       20%       30%       40%       50%       60%       70%       80%       90%      100%\n')
+	sys.stderr.write('\t|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|\n')
+	sys.stderr.write('\t|')
+	counter = 0
+	counter2 = 0
+	percentage = 0.01
+	for polyG in result:
+		summary.add_per_base_cov(polyG)
+		summary.add_pre_filter_read_count(polyG)
+		if polyG.filtered_read_count and polyG.call_flag[0] == '0':# and len(polyG.length_dist) > 1:
+			counter2 +=1
+			polyG.print_output()
+			del polyG
+		counter += 1
+		if (counter/float(total_pg_count)) > percentage: sys.stderr.write('.');percentage+=0.01;
+	sys.stderr.write('|\n\n')
+	tempo = time.time() - tempo
+	tempo = round(tempo)
+	sys.stderr.write(str(counter)+' polyGs processed in ~'+str(int(tempo))+' seconds.\n')
+	if counter2 == 0: input.outfile = open(input.outfile,'w'); input.outfile.write('No polyG regions passed filters ...\nTry again with less stringent settings.');input.outfile.close()
+	sys.stderr.write(str(counter2)+' polyGs finished calling, passed all filters and were printed to output file.\n\n')
+	summary.summarize()
+	print summary.summary
+#--------------------------MAIN PROGRAM END-------------------------
+
+
+
+#--------------------- Functions // Subroutines --------------------
+def f(polyG):
+		polyG.getReads()
+		polyG.get_pre_filter_read_count()
+		polyG.filter_reads()
+
+		if polyG.filtered_read_count: # check that readcount is greater than zero
+			if input.print_multi_alignemnt: polyG.print_alignment()
+			polyG.call_pglengths()
+			polyG.call_length()
+			polyG.cleanup(2)
+		
+		polyG.get_per_base_coverage_count()
+		return polyG
+
+#####
+#check if run or imported // call main() or not
+#####
+if __name__ == "__main__":
+    main()
+#END of script
