@@ -104,8 +104,8 @@ class PolyG():
 					self.qual	= line[10] #query QUALity (ASCII-33 gives the Phred base quality)
 					self.opt	= line[11:] #variable OPTional fields in the format TAG:VTYPE:VALUE
 					self.length	= len( self.seq)
-					assert self.rname	!= '*'
-					assert self.pos		!= 0
+					assert self.rname	!= '*', 'reference name is "*"'
+					assert self.pos		!= 0, 'mapping position is 0'
 				except IndexError:
 					sys.stderr.write( "IndexError!!"+'\n')
 					sys.stderr.write( str(line)+'\n')
@@ -247,8 +247,9 @@ class PolyG():
 			self.output += ('\t'+''.join(read.cigar))
 #			self.output += ('\t'+str(read.pos))
 			self.output += ('\n')
-			assert len(read.alignment_str[print_start:print_end]) == len(self.reference.seq[ref_start:ref_end])
-		self.output += ('\n') 
+#			assert len(read.alignment_str[print_start:print_end]) == len(self.reference.seq[ref_start:ref_end]), self.output+'\n\nlengths of alignemnt string does not match('+self.pgid+')'
+			if len(read.alignment_str[print_start:print_end]) != len(self.reference.seq[ref_start:ref_end]): self.output += ('WARNING: the alignment string length does not match the reference length for the above read, visualization might be faulty.\nread:'+read.alignment_str[print_start:print_end]+'\nref: '+self.reference.seq[ref_start:ref_end]+'\n')
+		self.output += ('\n')
 		self.cleanup(3) #remove alignemnt strings
 	#end of print_alignment()
 
@@ -260,7 +261,7 @@ class PolyG():
 		#Set initial values and check that reads are present
 		self.sucessfully_called_reads = 0
 		first_read = True
-		if not self.reads: sys.stderr.write('Warning: '+self.pd_id+' has no reads and no calling has been done');self.call_flag = '1:no reads present';return
+		if not self.reads: sys.stderr.write('WARNING: '+self.pd_id+' has no reads and no calling has been done');self.call_flag = '1:no reads present';return
 		else: self.call_flag = '2:readcalling started'
 
 		for read in self.reads:					# for ech read present do the following:
@@ -321,7 +322,7 @@ class PolyG():
 						r_edge_I = True
 					elif start == 'after':	# the insertion starts after the pg ie either will the edge bases not match or the calling will be uneffected (CAGTCCCCCT[N*n]GAC to CAGTCCCCCTGAC[N*n])
 						pass
-					else: raise ValueError
+					else: raise ValueError, 'impossible value of start'
 
 				elif type == 'D': #Deletion, 'bases' base less in read than in reference  ie. increase ref position, shift polyG position backward in read (decrease read.pg_pos)
 					ref_position += bases
@@ -343,7 +344,7 @@ class PolyG():
 						r_edge_D = True
 					elif start == 'after':	# the Deletion starts after the pg ie either will the edge bases not match or the calling will be uneffected (CAGTCCCCCT-AC to CAGTCCCCCTGAC[-*n]), will most likely be caught by the edge mismatch check and will otherwiae not affect the calling
 						pass
-					else: raise ValueError
+					else: raise ValueError, 'impossible value of start 2'
 
 				elif type == 'S':
 					# pg34210
@@ -378,12 +379,12 @@ class PolyG():
 						if		end == 'before': pass
 						elif	end == 'l_edge_m1': pass
 						elif	end == 'l_edge' or end == 'within' or end == 'r_edge' or end == 'after': l_edge_D = True
-						else: raise ValueError
+						else: raise ValueError, 'end position is not possible 2'
 					elif start == 'l_edge' or start == 'within':	
 						if		end == 'before' or end == 'l_edge_m1' or end == 'l_edge' or end == 'within' or end == 'r_edge':	pass
 						elif	end == 'after': r_edge_D = True
-						else: raise ValueError
-					else: raise ValueError
+						else: raise ValueError, 'end position is not possible 3'
+					else: raise ValueError, 'start position is not possible'
 
 			#output info:
 			if first_read and input.print_calling_info: self.output += ('id\t\t\t\tbefore:\tpolyG:\tafter:\tlength:\tflag:\ttags:\nreference sequence:       \t'+ self.reference.seq[50-input.match:50]+'\t'+self.reference.seq[50:50+self.reference.length]+'\t'+self.reference.seq[50+self.reference.length:50+self.reference.length+input.match]+'\t'+str(self.reference.length)+'\n');first_read=False
@@ -391,7 +392,19 @@ class PolyG():
 			if input.print_calling_info: self.output += (read.qname+'\t')
 
 			#look for mismatches in polyG and Edge bases (and print info)
+			#check that lengths match before mismatch comparison
+			length_match = True
+			if len(read.seq[read.pg_pos-input.match:read.pg_pos]) != len(self.reference.seq[50-input.match:50]): length_match = False
+			if read.called_length == self.reference.length:
+				if len(read.seq[read.pg_pos:read.pg_pos+self.reference.length]) != len(self.reference.seq[50:50+self.reference.length]): length_match = False
+			else:
+				if len(read.seq[read.pg_pos:read.pg_pos+read.called_length]) != len(''.join([self.reference.seq[50:51] for i in range(read.called_length)])): length_match = False
+			if len(read.seq[read.pg_pos+read.called_length:read.pg_pos+read.called_length+input.match]) != len(self.reference.seq[50+self.reference.length:50+self.reference.length+input.match]): length_match = False
+			
+			#set flag for edge coverage
+			edge_cov = True
 			#the before polyG edge bases
+			if (read.pg_pos-input.match) < 0: edge_cov = False
 			for base in zip(read.seq[read.pg_pos-input.match:read.pg_pos],self.reference.seq[50-input.match:50]):
 				if base[0] == base[1]:
 					if input.print_calling_info: self.output += (base[0])
@@ -404,6 +417,7 @@ class PolyG():
 			#within the polyG region
 			if input.print_calling_info: self.output += ('\t')
 			if read.called_length == self.reference.length:
+				if (read.pg_pos+self.reference.length) > len(read.seq): edge_cov = False
 				for base in zip(read.seq[read.pg_pos:read.pg_pos+self.reference.length],self.reference.seq[50:50+self.reference.length]):
 					if base[0] == base[1]:
 						if input.print_calling_info: self.output += (base[0])
@@ -414,6 +428,7 @@ class PolyG():
 							self.output += (mmbase_string);
 						read.MM_in_pg = True;
 			else: 
+				if (read.pg_pos+read.called_length) > len(read.seq): edge_cov = False
 				for base in zip(read.seq[read.pg_pos:read.pg_pos+read.called_length],''.join([self.reference.seq[50:51] for i in range(read.called_length)])):
 					if base[0] == base[1]:
 						if input.print_calling_info: self.output += (base[0])
@@ -425,6 +440,7 @@ class PolyG():
 						read.MM_in_pg = True				
 			#the after polyG edge bases
 			if input.print_calling_info: self.output += ('\t')
+			if (read.pg_pos+read.called_length+input.match) > len(read.seq): edge_cov = False
 			for base in zip(read.seq[read.pg_pos+read.called_length:read.pg_pos+read.called_length+input.match],self.reference.seq[50+self.reference.length:50+self.reference.length+input.match]):
 				if base[0] == base[1]:
 					if input.print_calling_info: self.output += (base[0])
@@ -438,7 +454,8 @@ class PolyG():
 
 			#set edge deletion flag
 			if l_edge_D or r_edge_D: read.call_flag = '3:Deletion of edge base(s)'
-
+			if not edge_cov: read.call_flag = '4:missing coverage of edge base(s) or polyG'
+				
 			#print info
 			if input.print_calling_info:
 				self.output += ('\t'+read.call_flag[0])
@@ -455,6 +472,8 @@ class PolyG():
 				elif read.call_flag[0] == '3': self.output += ('\tEdge_Deleted')
 				elif read.call_flag[0] == '4': self.output += ('\tNoOverlap(shift)')
 				elif read.call_flag[0] == '5': self.output += ('\tNoOverlap(Deleted)')
+				if not edge_cov: self.output += ('\tWARN: missing coverage for edge or polyG!')
+				if not length_match: self.output += ('\tWARN:MM comp lengths does not match!')
 				self.output += ('\n')
 			read.call_flag += ':finished'
 			if read.call_flag[0] == '0': self.sucessfully_called_reads += 1

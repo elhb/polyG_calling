@@ -1,7 +1,34 @@
-###################################
-#              README             #
-###################################
-#                                 #
-# This readmy file is still empty #
-#                                 #
-###################################
+####################################################################################################
+#                                               README                                             #
+####################################################################################################
+#                                                                                                  #
+# This software is still in development, use at own risk!                                          #
+#                                                                                                  #
+# usage: pGcaller_multiprocessingVersion [-h] -b FILE -p FILE -o str [-m N]                        #
+#                                        [-q N] [-l N] [-pci] [-pma] [-nbb]                        #
+#                                        [-psc] [-rrc N] [-ps %]                                   #
+#                                                                                                  #
+# Script for calling length of polyG regions in reads extracted from a ".bam" file.                #
+# The scripts require  python 2.7 and that samtools are installed                                  #
+# (at uppmax run "module load samtools").                                                          #
+#                                                                                                  #
+# optional arguments:                                                                              #
+#   -h, --help  show this help message and exit                                                    #
+#   -b FILE     Input ".bam" file to extract reads from. Must use full path!                       #
+#   -p FILE     Fasta file containing polyG regions found in hg19/grch37.                          #
+#   -o str      Output filename prefix, file were info about each polyG will be printed.           #
+#   -m N        Number of bases that need to match at each side of polyG region                    #
+#               eg, -m 3 means N(G*n)N (defaults to minimum value = 1).                            #
+#   -q N        Minimum mapping quality requiered to consider read.                                #
+#   -l N        Maximum number of pg reagions to load,                                             #
+#               for testing & debugging purposes (0 = inifint, default).                           #
+#   -pci        Print information during length calling to output (default= Flase).                #
+#   -pma        Print multi alignemnt of reads covering each polyG (default= Flase).               #
+#   -nbb        Do not show mismatch bases in multialignment with bold font (default= false).      #
+#   -psc        Print the samtools command used for read extraction from bamfile,                  #
+#               for debugging purposes (default= false).                                           #
+#   -rrc N      The read count requiered for calling of polyG length (default = 4).                #
+#   -ps %       Percentage support needed to call an allel                                         #
+#               (default = 40, must be >1/3 or three allels can be called).                        #
+#                                                                                                  #
+####################################################################################################
