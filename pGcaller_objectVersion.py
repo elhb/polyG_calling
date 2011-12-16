@@ -12,6 +12,7 @@ from Bio.SeqRecord import SeqRecord
 
 ############################################
 # This script requires python 2.7 or later #
+# biopython and samtools                   #
 ############################################
 #20110711 Erik Borgstroem
 
@@ -31,7 +32,7 @@ argparser.add_argument(	'-pma',	dest='print_multi_alignemnt',					action='store_
 argparser.add_argument(	'-nbb',	dest='no_bold_bases',							action='store_true',	required=False,	default=False,	help='Do not show mismatch bases in multialignment with bold font (default= false).')
 argparser.add_argument(	'-psc',	dest='print_samtools_command',					action='store_true',	required=False,	default=False,	help='Print the samtools command used for read extraction from bamfile, for debugging purposes (default= false).')
 argparser.add_argument(	'-rrc',	dest='required_read_count',		metavar='N',	type=int,				required=False,	default=4,		help='The read count requiered for calling of polyG length (default = 4).')
-argparser.add_argument(	'-ps',	dest='percentage_support',			metavar='%',	type=int,				required=False,	default=40,		help='Percentage support needed to call an allel (default = 40, must be >1/3 or three allels can be called).')
+argparser.add_argument(	'-ps',	dest='percentage_support',			metavar='%',	type=float,				required=False,	default=40,		help='Percentage support needed to call an allel (default = 40, must be >1/3 or three allels can be called).')
 # percentage support requiered for heterozygote call
 input = argparser.parse_args(sys.argv[1:])
 assert input.match != 0, "atleast one base has to match on each side of polyG to be able do do analysis, ie -m cannot be zero."
@@ -115,7 +116,7 @@ class PolyG():
 		# ---- getReads() function work starting here ----
 
 		#Store command for debugging purposes
-		self.get_read_cmd = ' '.join(['samtools', 'view', input.bamfile.name, self.chrom+':'+str(self.pos)+'-'+str( self.pos + self.reference.length -1)])
+		self.get_read_cmd = ' '.join(['samtools', 'view','-q', str(input.min_mapq), input.bamfile.name, self.chrom+':'+str(self.pos)+'-'+str( self.pos + self.reference.length -1)])
 
 		#startsubprocess that extracts samfile viewing the specified region
 		samtools = subprocess.Popen(['samtools', 'view', input.bamfile.name, self.chrom+':'+str(self.pos)+'-'+str( self.pos + self.reference.length -1)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -559,7 +560,7 @@ class PolyG():
 			
 		#"print" to output
 		self.output += "Distribution of called lengths:\n"
-		self.output += "len\tcount\t%\n"
+		self.output += "len\t#reads\t%\n"
 		for length in self.length_dist:
 			if length == 'total': continue
 			self.output += str(length)+'\t'+str(self.length_dist[length]['count'])+'\t'+str(self.length_dist[length]['percentage_support']*100)+'\n'
@@ -616,7 +617,7 @@ class PolyG():
 		self.per_base_cov = {}
 		
 		#run subprocess
-		samtools = subprocess.Popen(['samtools', 'mpileup', '-r',self.chrom+':'+str(self.pos)+'-'+str( self.pos + self.reference.length -1), input.bamfile.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		samtools = subprocess.Popen(['samtools', 'mpileup', '-q', str(input.min_mapq), '-r',self.chrom+':'+str(self.pos)+'-'+str( self.pos + self.reference.length -1), input.bamfile.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		pileup_data, errdata = samtools.communicate()
 		if samtools.returncode != 0:
 			print 'Errorwhile running comand: '+str(' '.join(['samtools', 'mpileup', '-r',self.chrom+':'+str(self.pos)+'-'+str( self.pos + self.reference.length -1), input.bamfile.name])) + ' for polyG='+str(self.pgid)
@@ -663,7 +664,7 @@ class PolyG():
 			input.outfile = input.outfile + '.perPolygInfo.txt';
 			input.outfile = open(input.outfile,'w');
 			input.outfile2 = open(input.outfile2,'w');
-			input.outfile2.write('# pgid\tstdev_of_called_lengths\tnr_successfully_called_reads\tnr_of_different_called_lengths\twidth_of_called_lengths\tpercentage_MM\tallel1\t%support\tallel2\t%support\n')
+			input.outfile2.write('# pgid\tstdev_of_called_lengths\tnr_successfully_called_reads\tnr_of_different_called_lengths\twidth_of_called_lengths\tpercentage_MM\tallel1\t%support\tallel2\t%support\tcalledlengthsarray\n')
 		elif type(input.outfile) == file: input.outfile = open(input.outfile.name,'a');  input.outfile2 = open(input.outfile2.name,'a');
 		else: raise ValueError, 'input.outfile has to be file or string'
 
@@ -682,7 +683,10 @@ class PolyG():
 		input.outfile.write(self.output)
 		input.outfile.write('\n')
 
-		input.outfile2.write(self.pgid+'\t'+str(self.pg_lengths_stdev)+'\t'+str(self.sucessfully_called_reads)+'\t'+str(len(self.length_dist))+'\t'+str(self.length_dist_width)+'\t'+str(self.percentage_MM)+'\t'+str(self.allel1)+'\t'+str(self.allel1_ps)+'\t'+str(self.allel2)+'\t'+str(self.allel2_ps)+'\n')
+		input.outfile2.write(self.pgid+'\t'+str(self.pg_lengths_stdev)+'\t'+str(self.sucessfully_called_reads)+'\t'+str(len(self.length_dist))+'\t'+str(self.length_dist_width)+'\t'+str(self.percentage_MM)+'\t'+str(self.allel1)+'\t'+str(self.allel1_ps)+'\t'+str(self.allel2)+'\t'+str(self.allel2_ps)+'\t:')
+		for length in self.length_dist:
+			input.outfile2.write(str(length)+','+str(self.length_dist[length]['count'])+':')
+		input.outfile2.write('\n')
 
 		#close files
 		input.outfile.close()
