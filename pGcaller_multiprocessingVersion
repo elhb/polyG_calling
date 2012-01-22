@@ -50,6 +50,7 @@ def main():
 		summary.add_per_base_cov(polyG)
 		summary.add_pre_filter_read_count(polyG)
 		if polyG.filtered_read_count and polyG.call_flag[0] == '0':# and len(polyG.length_dist) > 1:
+#		if polyG.filtered_read_count and polyG.call_flag[0] != '5':# and polyG.call_flag[0] == '0':# and len(polyG.length_dist) > 1:
 			counter2 +=1
 			polyG.print_output()
 			del polyG

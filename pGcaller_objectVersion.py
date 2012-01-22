@@ -33,6 +33,7 @@ argparser.add_argument(	'-nbb',	dest='no_bold_bases',							action='store_true',
 argparser.add_argument(	'-psc',	dest='print_samtools_command',					action='store_true',	required=False,	default=False,	help='Print the samtools command used for read extraction from bamfile, for debugging purposes (default= false).')
 argparser.add_argument(	'-rrc',	dest='required_read_count',		metavar='N',	type=int,				required=False,	default=4,		help='The read count requiered for calling of polyG length (default = 4).')
 argparser.add_argument(	'-ps',	dest='percentage_support',			metavar='%',	type=float,				required=False,	default=40,		help='Percentage support needed to call an allel (default = 40, must be >1/3 or three allels can be called).')
+argparser.add_argument(	'-pp',	dest='properPair',								action='store_true',	required=False,	default=False,	help='Only use proper pairs for calling (default= false).')
 # percentage support requiered for heterozygote call
 input = argparser.parse_args(sys.argv[1:])
 assert input.match != 0, "atleast one base has to match on each side of polyG to be able do do analysis, ie -m cannot be zero."
@@ -159,6 +160,8 @@ class PolyG():
 			if read.pos > self.pos-input.match: continue #Skips if read starts within pg region or edge bases
 			if read.pos + trimmed_length < self.pos + self.reference.length + input.match: continue #Skips if read ends within pg region or edge bases
 			if read.mapq < input.min_mapq: continue #Mapping quality below threshold => skip read
+			if input.properPair: #if option given true skips reads which are not flagged as proper pair in bamfile
+				if not explainflag(read.flag)[1]: continue
 			temporary.append(read) #append to temp filtered reads array if all test passed
 		self.reads = temporary #set self.reads to filtered reads array
 		self.filtered_read_count = len(self.reads)
